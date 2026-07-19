@@ -1,0 +1,103 @@
+name: taiwan-rent-monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions schedules are best-effort and may be delayed.
+    # Keep this conservative unless you have confirmed the target sources allow the load.
+    - cron: "16 * * * *"
+
+concurrency:
+  group: taiwan-rent-monitor-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m playwright install chromium
+
+      - name: Restore crawler state
+        uses: actions/cache/restore@v4
+        with:
+          path: rent_bot.sqlite3
+          key: rent-db-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            rent-db-${{ github.ref_name }}-
+
+      - name: Run watch
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          RENT_CONFIG_PATH: rent_config.example.toml
+          RUN_MODE: watch
+          MAX_RESULTS_PER_RUN: ${{ vars.MAX_RESULTS_PER_RUN || '10' }}
+          WATCH_NOTIFY_LIMIT: ${{ vars.WATCH_NOTIFY_LIMIT || '10' }}
+          DB_PATH: rent_bot.sqlite3
+          CRAWL_INTERVAL_MINUTES: '60'
+          CATCH_UP_GRACE_MINUTES: ${{ vars.CATCH_UP_GRACE_MINUTES || '15' }}
+          SOURCE_591_CATCH_UP_MAX_PAGES: ${{ vars.SOURCE_591_CATCH_UP_MAX_PAGES || '2' }}
+          MAX_RENT: ${{ vars.MAX_RENT || '18600' }}
+          MIN_AREA_PING: ${{ vars.MIN_AREA_PING || '6.0' }}
+          SUITE_ONLY: ${{ vars.SUITE_ONLY || 'true' }}
+          EXCLUDE_FEMALE_ONLY: ${{ vars.EXCLUDE_FEMALE_ONLY || 'true' }}
+          ENABLE_GOOGLE_MAPS: ${{ vars.ENABLE_GOOGLE_MAPS || 'false' }}
+          ENABLE_NTU_RANKING: ${{ vars.ENABLE_NTU_RANKING || 'false' }}
+          ENABLE_OPENAI_CLASSIFIER: ${{ vars.ENABLE_OPENAI_CLASSIFIER || 'false' }}
+          SOURCE_PTT_ENABLED: ${{ vars.SOURCE_PTT_ENABLED || 'false' }}
+          PTT_MAX_PAGES: ${{ vars.PTT_MAX_PAGES || '2' }}
+          SOURCE_591_ENABLED: ${{ vars.SOURCE_591_ENABLED || 'true' }}
+          SOURCE_591_SEARCH_URLS: ${{ vars.SOURCE_591_SEARCH_URLS || '' }}
+          SOURCE_591_ROOM_TYPES: ${{ vars.SOURCE_591_ROOM_TYPES || '' }}
+          SOURCE_591_MAX_PAGES: ${{ vars.SOURCE_591_MAX_PAGES || '1' }}
+          SOURCE_591_PAGE_SIZE: ${{ vars.SOURCE_591_PAGE_SIZE || '30' }}
+          SOURCE_591_MAX_AGE_DAYS: ${{ vars.SOURCE_591_MAX_AGE_DAYS || '14' }}
+          SOURCE_RAKUYA_ENABLED: ${{ vars.SOURCE_RAKUYA_ENABLED || 'false' }}
+          SOURCE_RAKUYA_SEARCH_URLS: ${{ vars.SOURCE_RAKUYA_SEARCH_URLS || '' }}
+          SOURCE_RAKUYA_MAX_PAGES: ${{ vars.SOURCE_RAKUYA_MAX_PAGES || '1' }}
+          SOURCE_RAKUYA_MAX_AGE_DAYS: ${{ vars.SOURCE_RAKUYA_MAX_AGE_DAYS || '14' }}
+          SOURCE_YUNGCHING_ENABLED: ${{ vars.SOURCE_YUNGCHING_ENABLED || 'false' }}
+          SOURCE_YUNGCHING_SEARCH_URLS: ${{ vars.SOURCE_YUNGCHING_SEARCH_URLS || '' }}
+          SOURCE_YUNGCHING_MAX_PAGES: ${{ vars.SOURCE_YUNGCHING_MAX_PAGES || '1' }}
+          SOURCE_YUNGCHING_MAX_AGE_DAYS: ${{ vars.SOURCE_YUNGCHING_MAX_AGE_DAYS || '14' }}
+          SOURCE_HOUSEPRICE_ENABLED: ${{ vars.SOURCE_HOUSEPRICE_ENABLED || 'false' }}
+          SOURCE_HOUSEPRICE_SEARCH_URLS: ${{ vars.SOURCE_HOUSEPRICE_SEARCH_URLS || '' }}
+          SOURCE_HOUSEPRICE_MAX_PAGES: ${{ vars.SOURCE_HOUSEPRICE_MAX_PAGES || '1' }}
+          SOURCE_HOUSEPRICE_MAX_AGE_DAYS: ${{ vars.SOURCE_HOUSEPRICE_MAX_AGE_DAYS || '14' }}
+          SOURCE_SINYI_ENABLED: ${{ vars.SOURCE_SINYI_ENABLED || 'false' }}
+          SOURCE_SINYI_SEARCH_URLS: ${{ vars.SOURCE_SINYI_SEARCH_URLS || '' }}
+          SOURCE_SINYI_MAX_PAGES: ${{ vars.SOURCE_SINYI_MAX_PAGES || '1' }}
+          SOURCE_SINYI_MAX_AGE_DAYS: ${{ vars.SOURCE_SINYI_MAX_AGE_DAYS || '14' }}
+          USER_AGENT: ${{ vars.USER_AGENT || 'TaiwanRentMonitor/0.1 personal-use' }}
+        run: python main.py watch
+
+      - name: Save crawler state
+        if: ${{ always() && hashFiles('rent_bot.sqlite3') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: rent_bot.sqlite3
+          key: rent-db-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}

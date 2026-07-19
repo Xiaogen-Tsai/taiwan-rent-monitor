@@ -1,0 +1,85 @@
+# 複製為 rent_config.toml，再依需求修改。
+# Secrets 只放 .env；此檔不接受 Discord webhook 或 API key。
+
+schema_version = 1
+
+# 主要地點設定：縣市與行政區會嚴格驗證，台／臺會自動正規化。
+# 整個縣市可寫成 "台南市" = ["*"]，且 * 必須單獨使用。
+[locations]
+"台北市" = ["大安區", "文山區"]
+"台中市" = ["西屯區", "北區"]
+"高雄市" = ["左營區", "苓雅區"]
+
+[filters]
+max_rent = 18600
+min_area_ping = 6.0
+suite_only = true
+exclude_female_only = true
+
+[schedule]
+# Windows 排程每幾分鐘執行；修改後需重跑 setup_windows_task.ps1。
+interval_minutes = 60
+# 超過正常間隔 15 分鐘後，下一輪暫時加深 591 補抓。
+catch_up_grace_minutes = 15
+source_591_catch_up_max_pages = 2
+
+[notifications]
+max_results_per_run = 200
+watch_notify_limit = 50
+
+[ranking]
+# 全台一般用途建議關閉；只有想找台大周邊時才開啟。
+enable_ntu_ranking = false
+enable_google_maps = false
+
+[classification]
+enable_openai_classifier = false
+openai_model = "gpt-4.1-mini"
+
+[runtime]
+run_mode = "watch"
+database_path = "rent_bot.sqlite3"
+
+[network]
+request_min_delay_seconds = 2.0
+request_max_delay_seconds = 5.0
+http_timeout_seconds = 20
+user_agent = "TaiwanRentMonitor/0.1 personal-use"
+
+[sources.ptt]
+# Rent_tao 主要是桃園租屋；非桃園搜尋預設關閉。
+enabled = false
+max_pages = 2
+
+[sources.591]
+enabled = true
+room_types = ["獨立套房", "分租套房"]
+# 空陣列：依 [locations] 自動產生；非空：完整覆寫自動產生的 591 URL。
+search_urls = []
+max_pages = 1
+page_size = 30
+max_age_days = 14
+
+[sources.rakuya]
+enabled = false
+search_urls = []
+max_pages = 1
+max_age_days = 14
+
+[sources.yungching]
+enabled = false
+search_urls = []
+max_pages = 1
+max_age_days = 14
+
+[sources.houseprice]
+enabled = false
+search_urls = ["https://rent.houseprice.tw/"]
+max_pages = 1
+max_age_days = 14
+
+[sources.sinyi]
+enabled = false
+search_urls = []
+max_pages = 1
+max_age_days = 14
